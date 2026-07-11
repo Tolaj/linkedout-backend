@@ -18,6 +18,25 @@ const PORT = process.env.PORT || 4000;
 app.use(cors({ origin: process.env.FRONTEND_URL || "*" }));
 app.use(express.json({ limit: "10mb" }));
 
+// DB connection middleware (runs before all routes on Vercel)
+let isConnected = false;
+
+async function connectDB() {
+  if (isConnected) return;
+  await mongoose.connect(process.env.MONGODB_URI);
+  isConnected = true;
+  console.log("Connected to MongoDB");
+}
+
+app.use(async (_req, _res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Public routes
 app.use("/api/auth", authRoutes);
 
@@ -40,21 +59,7 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message });
 });
 
-let isConnected = false;
-
-async function connectDB() {
-  if (isConnected) return;
-  await mongoose.connect(process.env.MONGODB_URI);
-  isConnected = true;
-  console.log("Connected to MongoDB");
-}
-
-if (process.env.VERCEL) {
-  app.use(async (_req, _res, next) => {
-    await connectDB();
-    next();
-  });
-} else {
+if (!process.env.VERCEL) {
   mongoose
     .connect(process.env.MONGODB_URI)
     .then(() => {
