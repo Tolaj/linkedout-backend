@@ -15,6 +15,7 @@ import mongoose from "mongoose";
 
 import auth from "./middleware/auth.js";
 import authRoutes from "./routes/auth.js";
+import gmailRoutes from "./routes/gmail.js";
 import crud from "./routes/crud.js";
 import Application from "./models/Application.js";
 import Email from "./models/Email.js";
@@ -55,6 +56,7 @@ app.use(async (_req, _res, next) => {
 
 // Public routes
 app.use("/api/auth", authRoutes);
+app.use("/api/gmail", gmailRoutes);
 
 app.get("/api/health", async (_req, res) => {
   const dbState = mongoose.connection.readyState;

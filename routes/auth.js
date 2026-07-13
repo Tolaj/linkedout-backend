@@ -51,7 +51,7 @@ router.get("/me", auth, async (req, res, next) => {
   try {
     const user = await User.findById(req.userId).select("-password").lean();
     if (!user) return res.status(401).json({ error: "User not found" });
-    res.json({ user: { id: user._id, name: user.name, email: user.email, folderName: user.folderName || "" } });
+    res.json({ user: { id: user._id, name: user.name, email: user.email, folderName: user.folderName || "", gmailConnected: user.gmailConnected || false } });
   } catch (err) { next(err); }
 });
 
@@ -59,10 +59,11 @@ router.put("/settings", auth, async (req, res, next) => {
   try {
     const update = {};
     if (req.body.folderName !== undefined) update.folderName = req.body.folderName;
+    if (req.body.googleClientSecret !== undefined) update.googleClientSecret = req.body.googleClientSecret;
 
     const user = await User.findByIdAndUpdate(req.userId, update, { new: true }).select("-password").lean();
     if (!user) return res.status(404).json({ error: "User not found" });
-    res.json({ user: { id: user._id, name: user.name, email: user.email, folderName: user.folderName || "" } });
+    res.json({ user: { id: user._id, name: user.name, email: user.email, folderName: user.folderName || "", gmailConnected: user.gmailConnected || false } });
   } catch (err) { next(err); }
 });
 
