@@ -1,6 +1,7 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import auth from "../middleware/auth.js";
 
 const router = Router();
 
@@ -46,33 +47,21 @@ router.post("/login", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-router.get("/me", async (req, res, next) => {
+router.get("/me", auth, async (req, res, next) => {
   try {
-    const header = req.headers.authorization;
-    if (!header?.startsWith("Bearer ")) return res.status(401).json({ error: "No token" });
-
-    const decoded = jwt.verify(header.split(" ")[1], process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select("-password").lean();
+    const user = await User.findById(req.userId).select("-password").lean();
     if (!user) return res.status(401).json({ error: "User not found" });
-
     res.json({ user: { id: user._id, name: user.name, email: user.email, folderName: user.folderName || "" } });
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-  }
+  } catch (err) { next(err); }
 });
 
-router.put("/settings", async (req, res, next) => {
+router.put("/settings", auth, async (req, res, next) => {
   try {
-    const header = req.headers.authorization;
-    if (!header?.startsWith("Bearer ")) return res.status(401).json({ error: "No token" });
-
-    const decoded = jwt.verify(header.split(" ")[1], process.env.JWT_SECRET);
     const update = {};
     if (req.body.folderName !== undefined) update.folderName = req.body.folderName;
 
-    const user = await User.findByIdAndUpdate(decoded.id, update, { new: true }).select("-password").lean();
+    const user = await User.findByIdAndUpdate(req.userId, update, { new: true }).select("-password").lean();
     if (!user) return res.status(404).json({ error: "User not found" });
-
     res.json({ user: { id: user._id, name: user.name, email: user.email, folderName: user.folderName || "" } });
   } catch (err) { next(err); }
 });

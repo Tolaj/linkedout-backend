@@ -1,4 +1,14 @@
 import "dotenv/config";
+
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET is not set");
+  process.exit(1);
+}
+if (!process.env.MONGODB_URI) {
+  console.error("FATAL: MONGODB_URI is not set");
+  process.exit(1);
+}
+
 import express from "express";
 import cors from "cors";
 import mongoose from "mongoose";
@@ -17,7 +27,7 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "*",
+  origin: process.env.FRONTEND_URL || true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
@@ -62,14 +72,16 @@ app.use("/api/contacts", auth, crud(Contact));
 
 // Error handler
 app.use((err, _req, res, _next) => {
-  console.error(err.message);
-  res.status(500).json({ error: err.message });
+  console.error(err.stack || err.message);
+  const msg = process.env.NODE_ENV === "production" ? "Internal server error" : err.message;
+  res.status(500).json({ error: msg });
 });
 
 if (!process.env.VERCEL) {
   mongoose
     .connect(process.env.MONGODB_URI)
     .then(() => {
+      isConnected = true;
       console.log("Connected to MongoDB");
       app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
     })
