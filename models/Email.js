@@ -15,6 +15,8 @@ const schema = new mongoose.Schema({
   followUpDate:   String,
   sentAt:         String,
   threadId:       String,
+  gmailId:        String,
+  snippet:        String,
 }, { timestamps: true });
 
 export default mongoose.model("Email", schema);
