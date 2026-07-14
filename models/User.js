@@ -6,9 +6,14 @@ const schema = new mongoose.Schema({
   email:    { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true, minlength: 6 },
   folderName: { type: String, default: "" },
+  folders: { type: [String], default: [] },
+  googleClientId: { type: String, default: "" },
   googleClientSecret: { type: String, default: "" },
   gmailRefreshToken: { type: String, default: "" },
   gmailConnected: { type: Boolean, default: false },
+  llmApiKey: { type: String, default: "" },
+  llmProvider: { type: String, default: "cerebras" },
+  llmEnabled: { type: Boolean, default: false },
 }, { timestamps: true });
 
 schema.pre("save", async function (next) {
