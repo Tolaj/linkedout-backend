@@ -1,12 +1,14 @@
 import "dotenv/config";
 
-if (!process.env.JWT_SECRET) {
-  console.error("FATAL: JWT_SECRET is not set");
-  process.exit(1);
-}
-if (!process.env.MONGODB_URI) {
-  console.error("FATAL: MONGODB_URI is not set");
-  process.exit(1);
+if (!process.env.VERCEL) {
+  if (!process.env.JWT_SECRET) {
+    console.error("FATAL: JWT_SECRET is not set");
+    process.exit(1);
+  }
+  if (!process.env.MONGODB_URI) {
+    console.error("FATAL: MONGODB_URI is not set");
+    process.exit(1);
+  }
 }
 
 import express from "express";
@@ -28,7 +30,18 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || true,
+  origin: function (origin, callback) {
+    // Allow: no origin (server-to-server), chrome extensions, and configured frontend
+    if (!origin || origin.startsWith("chrome-extension://")) {
+      return callback(null, true);
+    }
+    var frontendUrl = process.env.FRONTEND_URL;
+    if (!frontendUrl || origin === frontendUrl) {
+      return callback(null, true);
+    }
+    // In production, also allow the deployed frontend
+    callback(null, true);
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
