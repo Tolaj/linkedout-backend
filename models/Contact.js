@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const schema = new mongoose.Schema({
-  id:       { type: String, required: true, unique: true },
+  id:       { type: String, required: true },
   userId:   { type: String, required: true, index: true },
   appId:    { type: String, index: true },
   name:     String,
@@ -9,5 +9,7 @@ const schema = new mongoose.Schema({
   position: String,
   notes:    String,
 }, { timestamps: true });
+
+schema.index({ id: 1, userId: 1 }, { unique: true });
 
 export default mongoose.model("Contact", schema);

@@ -40,8 +40,7 @@ app.use(cors({
     if (!frontendUrl || origin === frontendUrl) {
       return callback(null, true);
     }
-    // In production, also allow the deployed frontend
-    callback(null, true);
+    callback(new Error("Not allowed by CORS"));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -85,11 +84,14 @@ app.use("/api/templates", auth, crud(EmailTemplate));
 app.use("/api/resumes", auth, crud(Resume));
 app.use("/api/notes", auth, crud(Note));
 app.use("/api/contacts", auth, crud(Contact));
-app.use("/api/profilefields", auth, crud(ProfileField));
+app.use("/api/profilefields", auth, crud(ProfileField, { syncKeys: ["fieldKey"] }));
 
 // Error handler
 app.use((err, _req, res, _next) => {
   console.error(err.stack || err.message);
+  if (err.name === "ValidationError") return res.status(400).json({ error: err.message });
+  if (err.code === 11000) return res.status(409).json({ error: "Duplicate entry" });
+  if (err.name === "CastError") return res.status(400).json({ error: "Invalid ID format" });
   const msg = process.env.NODE_ENV === "production" ? "Internal server error" : err.message;
   res.status(500).json({ error: msg });
 });
