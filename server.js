@@ -48,8 +48,11 @@ const allowedExtensionId = process.env.CHROME_EXTENSION_ID || "";
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    if (allowedExtensionId && origin === `chrome-extension://${allowedExtensionId}`) {
-      return callback(null, true);
+    if (origin.startsWith("chrome-extension://")) {
+      if (!allowedExtensionId || origin === `chrome-extension://${allowedExtensionId}`) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
     }
     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
       return callback(null, true);
