@@ -5,6 +5,7 @@ const schema = new mongoose.Schema({
   userId:   { type: String, required: true, index: true },
   gmailId:  { type: String, required: true },
   status:   { type: String, enum: ["skipped", "tracked"], required: true },
+  emailDate: { type: String },
 }, { timestamps: true });
 
 schema.index({ id: 1, userId: 1 }, { unique: true });
