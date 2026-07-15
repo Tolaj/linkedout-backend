@@ -26,6 +26,7 @@ import Resume from "./models/Resume.js";
 import Note from "./models/Note.js";
 import Contact from "./models/Contact.js";
 import ProfileField from "./models/ProfileField.js";
+import ProcessedEmail from "./models/ProcessedEmail.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -85,6 +86,7 @@ app.use("/api/resumes", auth, crud(Resume));
 app.use("/api/notes", auth, crud(Note));
 app.use("/api/contacts", auth, crud(Contact));
 app.use("/api/profilefields", auth, crud(ProfileField, { syncKeys: ["fieldKey"] }));
+app.use("/api/processedemails", auth, crud(ProcessedEmail, { syncKeys: ["gmailId"] }));
 
 // Error handler
 app.use((err, _req, res, _next) => {
