@@ -7,6 +7,7 @@ function sanitizeBody(body) {
   const clean = { ...body };
   for (const key of FORBIDDEN_KEYS) delete clean[key];
   for (const [key, val] of Object.entries(clean)) {
+    if (typeof key === "string" && key.startsWith("$")) { delete clean[key]; continue; }
     if (val !== null && typeof val === "object" && !Array.isArray(val) && !(val instanceof Date)) {
       if (Object.keys(val).some((k) => k.startsWith("$"))) delete clean[key];
     }
@@ -50,7 +51,7 @@ export default function crud(Model, options = {}) {
       const items = req.body;
       if (!Array.isArray(items)) return res.status(400).json({ error: "Expected an array" });
       if (items.length > 500) return res.status(400).json({ error: "Batch too large (max 500)" });
-      const results = [];
+      const ops = [];
       for (const item of items) {
         const clean = sanitizeBody(item);
         let filter;
@@ -61,13 +62,24 @@ export default function crud(Model, options = {}) {
           if (!clean.id) continue;
           filter = { id: clean.id, userId: req.userId };
         }
-        const doc = await Model.findOneAndUpdate(
-          filter,
-          { ...clean, userId: req.userId },
-          { new: true, upsert: true, runValidators: true }
-        ).lean();
-        results.push(doc);
+        ops.push({
+          updateOne: {
+            filter,
+            update: { $set: { ...clean, userId: req.userId } },
+            upsert: true,
+          },
+        });
       }
+      if (ops.length > 0) await Model.bulkWrite(ops);
+      const syncFilter = { userId: req.userId };
+      if (options.syncKeys) {
+        for (const key of options.syncKeys) {
+          syncFilter[key] = { $in: items.map(i => i[key]).filter(Boolean) };
+        }
+      } else {
+        syncFilter.id = { $in: items.map(i => i.id).filter(Boolean) };
+      }
+      const results = await Model.find(syncFilter).lean();
       res.json(results);
     } catch (err) { next(err); }
   });
@@ -77,8 +89,9 @@ export default function crud(Model, options = {}) {
       const doc = await Model.findOneAndUpdate(
         { id: req.params.id, userId: req.userId },
         { ...sanitizeBody(req.body), userId: req.userId },
-        { new: true, upsert: true, runValidators: true }
+        { new: true, runValidators: true }
       ).lean();
+      if (!doc) return res.status(404).json({ error: "Not found" });
       res.json(doc);
     } catch (err) { next(err); }
   });

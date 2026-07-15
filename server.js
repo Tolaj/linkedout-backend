@@ -13,7 +13,10 @@ if (!process.env.VERCEL) {
 
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
 import mongoose from "mongoose";
+import rateLimit from "express-rate-limit";
 
 import auth from "./middleware/auth.js";
 import authRoutes from "./routes/auth.js";
@@ -31,14 +34,24 @@ import ProcessedEmail from "./models/ProcessedEmail.js";
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+app.set("trust proxy", 1);
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+app.use(compression());
+
+const allowedOrigins = (process.env.FRONTEND_URL || "").split(",").map(u => u.trim()).filter(Boolean);
+const allowedExtensionId = process.env.CHROME_EXTENSION_ID || "";
+
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow: no origin (server-to-server), chrome extensions, and configured frontend
-    if (!origin || origin.startsWith("chrome-extension://")) {
+    if (!origin) return callback(null, true);
+    if (allowedExtensionId && origin === `chrome-extension://${allowedExtensionId}`) {
       return callback(null, true);
     }
-    var frontendUrl = process.env.FRONTEND_URL;
-    if (!frontendUrl || origin === frontendUrl) {
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
     callback(new Error("Not allowed by CORS"));
@@ -49,6 +62,15 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "10mb" }));
 
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  message: { error: "Too many requests, please try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use("/api/", apiLimiter);
+
 // DB connection middleware (runs before all routes on Vercel)
 let isConnected = false;
 
@@ -58,6 +80,8 @@ async function connectDB() {
   isConnected = true;
   console.log("Connected to MongoDB");
 }
+
+mongoose.connection.on("disconnected", () => { isConnected = false; });
 
 app.use(async (_req, _res, next) => {
   try {
@@ -88,6 +112,11 @@ app.use("/api/contacts", auth, crud(Contact));
 app.use("/api/profilefields", auth, crud(ProfileField, { syncKeys: ["fieldKey"] }));
 app.use("/api/processedemails", auth, crud(ProcessedEmail, { syncKeys: ["gmailId"] }));
 
+// 404 handler
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "Not found" });
+});
+
 // Error handler
 app.use((err, _req, res, _next) => {
   console.error(err.stack || err.message);
@@ -104,7 +133,20 @@ if (!process.env.VERCEL) {
     .then(() => {
       isConnected = true;
       console.log("Connected to MongoDB");
-      app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+      const server = app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+      function shutdown() {
+        console.log("Shutting down gracefully...");
+        server.close(() => {
+          mongoose.connection.close(false).then(() => {
+            console.log("Closed MongoDB connection");
+            process.exit(0);
+          });
+        });
+        setTimeout(() => process.exit(1), 10000);
+      }
+      process.on("SIGTERM", shutdown);
+      process.on("SIGINT", shutdown);
     })
     .catch((err) => {
       console.error("MongoDB connection failed:", err.message);
