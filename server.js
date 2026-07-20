@@ -43,13 +43,14 @@ app.use(helmet({
 app.use(compression());
 
 const allowedOrigins = (process.env.FRONTEND_URL || "").split(",").map(u => u.trim()).filter(Boolean);
-const allowedExtensionId = process.env.CHROME_EXTENSION_ID || "";
+const allowedExtensionIds = (process.env.CHROME_EXTENSION_ID || "").split(",").map(s => s.trim()).filter(Boolean);
 
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
     if (origin.startsWith("chrome-extension://")) {
-      if (!allowedExtensionId || origin === `chrome-extension://${allowedExtensionId}`) {
+      const id = origin.replace("chrome-extension://", "");
+      if (allowedExtensionIds.length === 0 || allowedExtensionIds.includes(id)) {
         return callback(null, true);
       }
       return callback(new Error("Not allowed by CORS"));
@@ -57,13 +58,38 @@ app.use(cors({
     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    callback(new Error("Not allowed by CORS"));
+    // Allow all other origins — extension content scripts run on any job site
+    // JWT auth handles security on protected routes
+    return callback(null, true);
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 }));
 app.use(express.json({ limit: "10mb" }));
+
+// const allowedOrigins = (process.env.FRONTEND_URL || "").split(",").map(u => u.trim()).filter(Boolean);
+// const allowedExtensionId = process.env.CHROME_EXTENSION_ID || "";
+
+// app.use(cors({
+//   origin: function (origin, callback) {
+//     if (!origin) return callback(null, true);
+//     if (origin.startsWith("chrome-extension://")) {
+//       if (!allowedExtensionId || origin === `chrome-extension://${allowedExtensionId}`) {
+//         return callback(null, true);
+//       }
+//       return callback(new Error("Not allowed by CORS"));
+//     }
+//     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+//       return callback(null, true);
+//     }
+//     callback(new Error("Not allowed by CORS"));
+//   },
+//   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+//   allowedHeaders: ["Content-Type", "Authorization"],
+//   credentials: true,
+// }));
+// app.use(express.json({ limit: "10mb" }));
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
