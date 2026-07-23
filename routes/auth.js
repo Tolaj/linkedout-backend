@@ -22,9 +22,7 @@ function userPayload(user) {
     folderName: user.folderName || "",
     folders: user.folders || [],
     googleClientId: user.googleClientId || "",
-    googleClientSecret: user.googleClientSecret || "",
     gmailConnected: user.gmailConnected || false,
-    llmApiKey: user.llmApiKey || "",
     llmProvider: user.llmProvider || "cerebras",
     llmEnabled: !!user.llmEnabled,
   };

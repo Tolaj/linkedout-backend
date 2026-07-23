@@ -2,15 +2,28 @@ import { Router } from "express";
 
 const FORBIDDEN_KEYS = ["_id", "__v", "userId", "createdAt", "updatedAt"];
 
+function sanitizeValue(val) {
+  if (val === null || val === undefined) return val;
+  if (val instanceof Date) return val;
+  if (Array.isArray(val)) return val.map(sanitizeValue);
+  if (typeof val === "object") {
+    const clean = {};
+    for (const [k, v] of Object.entries(val)) {
+      if (typeof k === "string" && k.startsWith("$")) continue;
+      clean[k] = sanitizeValue(v);
+    }
+    return clean;
+  }
+  return val;
+}
+
 function sanitizeBody(body) {
   if (!body || typeof body !== "object") return {};
-  const clean = { ...body };
-  for (const key of FORBIDDEN_KEYS) delete clean[key];
-  for (const [key, val] of Object.entries(clean)) {
-    if (typeof key === "string" && key.startsWith("$")) { delete clean[key]; continue; }
-    if (val !== null && typeof val === "object" && !Array.isArray(val) && !(val instanceof Date)) {
-      if (Object.keys(val).some((k) => k.startsWith("$"))) delete clean[key];
-    }
+  const clean = {};
+  for (const [key, val] of Object.entries(body)) {
+    if (FORBIDDEN_KEYS.includes(key)) continue;
+    if (typeof key === "string" && key.startsWith("$")) continue;
+    clean[key] = sanitizeValue(val);
   }
   return clean;
 }
@@ -20,14 +33,18 @@ export default function crud(Model, options = {}) {
 
   router.get("/", async (req, res, next) => {
     try {
-      const page = Math.max(1, parseInt(req.query.page) || 1);
-      const limit = Math.min(parseInt(req.query.limit) || 500, 1000);
-      const docs = await Model.find({ userId: req.userId })
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean();
-      res.json(docs);
+      const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      const limit = Math.min(Math.max(1, parseInt(req.query.limit, 10) || 50), 200);
+      const filter = { userId: req.userId };
+      const [docs, total] = await Promise.all([
+        Model.find(filter)
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .lean(),
+        Model.countDocuments(filter),
+      ]);
+      res.json({ data: docs, total, page, limit });
     } catch (err) { next(err); }
   });
 

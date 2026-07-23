@@ -1,14 +1,12 @@
 import "dotenv/config";
 
-if (!process.env.VERCEL) {
-  if (!process.env.JWT_SECRET) {
-    console.error("FATAL: JWT_SECRET is not set");
-    process.exit(1);
-  }
-  if (!process.env.MONGODB_URI) {
-    console.error("FATAL: MONGODB_URI is not set");
-    process.exit(1);
-  }
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET is not set");
+  process.exit(1);
+}
+if (!process.env.MONGODB_URI) {
+  console.error("FATAL: MONGODB_URI is not set");
+  process.exit(1);
 }
 
 import express from "express";
@@ -58,9 +56,7 @@ app.use(cors({
     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    // Allow all other origins — extension content scripts run on any job site
-    // JWT auth handles security on protected routes
-    return callback(null, true);
+    return callback(new Error("Not allowed by CORS"));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
@@ -68,28 +64,6 @@ app.use(cors({
 }));
 app.use(express.json({ limit: "10mb" }));
 
-// const allowedOrigins = (process.env.FRONTEND_URL || "").split(",").map(u => u.trim()).filter(Boolean);
-// const allowedExtensionId = process.env.CHROME_EXTENSION_ID || "";
-
-// app.use(cors({
-//   origin: function (origin, callback) {
-//     if (!origin) return callback(null, true);
-//     if (origin.startsWith("chrome-extension://")) {
-//       if (!allowedExtensionId || origin === `chrome-extension://${allowedExtensionId}`) {
-//         return callback(null, true);
-//       }
-//       return callback(new Error("Not allowed by CORS"));
-//     }
-//     if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
-//       return callback(null, true);
-//     }
-//     callback(new Error("Not allowed by CORS"));
-//   },
-//   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-//   allowedHeaders: ["Content-Type", "Authorization"],
-//   credentials: true,
-// }));
-// app.use(express.json({ limit: "10mb" }));
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -105,7 +79,7 @@ let isConnected = false;
 
 async function connectDB() {
   if (isConnected) return;
-  await mongoose.connect(process.env.MONGODB_URI);
+  await mongoose.connect(process.env.MONGODB_URI, { maxPoolSize: 5 });
   isConnected = true;
   console.log("Connected to MongoDB");
 }
@@ -152,13 +126,13 @@ app.use((err, _req, res, _next) => {
   if (err.name === "ValidationError") return res.status(400).json({ error: err.message });
   if (err.code === 11000) return res.status(409).json({ error: "Duplicate entry" });
   if (err.name === "CastError") return res.status(400).json({ error: "Invalid ID format" });
-  const msg = process.env.NODE_ENV === "production" ? "Internal server error" : err.message;
+  const msg = process.env.NODE_ENV !== "development" ? "Internal server error" : err.message;
   res.status(500).json({ error: msg });
 });
 
 if (!process.env.VERCEL) {
   mongoose
-    .connect(process.env.MONGODB_URI)
+    .connect(process.env.MONGODB_URI, { maxPoolSize: 5 })
     .then(() => {
       isConnected = true;
       console.log("Connected to MongoDB");
